@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
+import { Session, User } from '@supabase/supabase-js';
 import AuthPage from '@/components/AuthPage';
 import Homepage from '@/components/Homepage';
 import BookingFlow from '@/components/BookingFlow';
@@ -11,23 +11,27 @@ type AppState = 'auth' | 'homepage' | 'booking' | 'history';
 const Index = () => {
   const [currentView, setCurrentView] = useState<AppState>('auth');
   const [selectedCarId, setSelectedCarId] = useState<string>('');
-  const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Set up auth state listener
+    // Set up auth state listener first
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
         
-        if (session?.user && session.user.email_confirmed_at) {
-          setCurrentView('homepage');
+        if (session?.user) {
+          // Only allow verified users to access the homepage
+          if (session.user.email_confirmed_at) {
+            setCurrentView('homepage');
+          } else {
+            setCurrentView('auth');
+          }
         } else {
           setCurrentView('auth');
         }
-        
         setLoading(false);
       }
     );
@@ -37,12 +41,16 @@ const Index = () => {
       setSession(session);
       setUser(session?.user ?? null);
       
-      if (session?.user && session.user.email_confirmed_at) {
-        setCurrentView('homepage');
+      if (session?.user) {
+        // Only allow verified users to access the homepage
+        if (session.user.email_confirmed_at) {
+          setCurrentView('homepage');
+        } else {
+          setCurrentView('auth');
+        }
       } else {
         setCurrentView('auth');
       }
-      
       setLoading(false);
     });
 
@@ -81,6 +89,7 @@ const Index = () => {
     setCurrentView('homepage');
   };
 
+  // Show loading state
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-hero flex items-center justify-center">

@@ -21,53 +21,10 @@ const AuthPage = ({ onLogin }: AuthPageProps) => {
   const [phone, setPhone] = useState('');
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  // Handle signup with email verification
-  const handleSignUp = async () => {
-    if (!email || !password || !name || !phone) {
-      setMessage({ type: 'error', text: 'Please fill in all fields' });
-      return;
-    }
-
-    setIsLoading(true);
-    setMessage(null);
-
-    try {
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/`,
-          data: {
-            full_name: name,
-            phone: phone,
-          }
-        }
-      });
-
-      if (error) {
-        setMessage({ type: 'error', text: error.message });
-      } else {
-        setMessage({ 
-          type: 'success', 
-          text: 'Account created! Please check your email for verification link before signing in.' 
-        });
-        // Clear form
-        setEmail('');
-        setPassword('');
-        setName('');
-        setPhone('');
-      }
-    } catch (err: any) {
-      setMessage({ type: 'error', text: 'An unexpected error occurred' });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Handle login
-  const handleSignIn = async () => {
+  // Handle user login
+  const handleLogin = async () => {
     if (!email || !password) {
-      setMessage({ type: 'error', text: 'Please enter email and password' });
+      setMessage({ type: 'error', text: 'Please fill in all fields.' });
       return;
     }
 
@@ -81,25 +38,88 @@ const AuthPage = ({ onLogin }: AuthPageProps) => {
       });
 
       if (error) {
-        if (error.message === 'Email not confirmed') {
+        if (error.message.includes('Email not confirmed')) {
           setMessage({ 
             type: 'error', 
-            text: 'Please verify your email address before signing in. Check your inbox for verification link.' 
+            text: 'Please verify your email first. Check your inbox for the verification link.' 
           });
+        } else if (error.message.includes('Invalid login credentials')) {
+          setMessage({ type: 'error', text: 'Invalid email or password.' });
         } else {
           setMessage({ type: 'error', text: error.message });
         }
-      } else if (data.user && !data.user.email_confirmed_at) {
+        return;
+      }
+
+      if (data.user && data.user.email_confirmed_at) {
+        setMessage({ type: 'success', text: 'Login successful!' });
+        onLogin();
+      } else {
         setMessage({ 
           type: 'error', 
-          text: 'Please verify your email address before signing in. Check your inbox for verification link.' 
+          text: 'Please verify your email first. Check your inbox for the verification link.' 
         });
         await supabase.auth.signOut();
-      } else {
-        onLogin(); // Redirect to homepage
       }
-    } catch (err: any) {
-      setMessage({ type: 'error', text: 'An unexpected error occurred' });
+    } catch (error: any) {
+      setMessage({ type: 'error', text: 'An unexpected error occurred.' });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Handle user signup
+  const handleSignup = async () => {
+    if (!email || !password || !name || !phone) {
+      setMessage({ type: 'error', text: 'Please fill in all fields.' });
+      return;
+    }
+
+    if (password.length < 6) {
+      setMessage({ type: 'error', text: 'Password must be at least 6 characters.' });
+      return;
+    }
+
+    setIsLoading(true);
+    setMessage(null);
+
+    try {
+      const redirectUrl = `${window.location.origin}/`;
+      
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: redirectUrl,
+          data: {
+            full_name: name,
+            phone: phone,
+          }
+        }
+      });
+
+      if (error) {
+        if (error.message.includes('User already registered')) {
+          setMessage({ type: 'error', text: 'Email already registered. Please try logging in.' });
+        } else {
+          setMessage({ type: 'error', text: error.message });
+        }
+        return;
+      }
+
+      setMessage({ 
+        type: 'success', 
+        text: 'Account created! Please check your email and click the verification link to activate your account.' 
+      });
+      
+      // Clear form
+      setEmail('');
+      setPassword('');
+      setName('');
+      setPhone('');
+      
+    } catch (error: any) {
+      setMessage({ type: 'error', text: 'An unexpected error occurred.' });
     } finally {
       setIsLoading(false);
     }
@@ -152,7 +172,7 @@ const AuthPage = ({ onLogin }: AuthPageProps) => {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {message && (
-                    <Alert className={message.type === 'error' ? 'border-red-500 text-red-700' : 'border-green-500 text-green-700'}>
+                    <Alert className={message.type === 'error' ? 'border-destructive' : 'border-green-500'}>
                       {message.type === 'error' ? (
                         <AlertCircle className="h-4 w-4" />
                       ) : (
@@ -161,7 +181,7 @@ const AuthPage = ({ onLogin }: AuthPageProps) => {
                       <AlertDescription>{message.text}</AlertDescription>
                     </Alert>
                   )}
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor="email">Email</Label>
                     <div className="relative">
@@ -193,7 +213,7 @@ const AuthPage = ({ onLogin }: AuthPageProps) => {
                   </div>
 
                   <Button 
-                    onClick={handleSignIn}
+                    onClick={handleLogin}
                     disabled={isLoading}
                     className="w-full bg-gradient-primary hover:bg-primary-hover shadow-button"
                   >
@@ -214,7 +234,7 @@ const AuthPage = ({ onLogin }: AuthPageProps) => {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {message && (
-                    <Alert className={message.type === 'error' ? 'border-red-500 text-red-700' : 'border-green-500 text-green-700'}>
+                    <Alert className={message.type === 'error' ? 'border-destructive' : 'border-green-500'}>
                       {message.type === 'error' ? (
                         <AlertCircle className="h-4 w-4" />
                       ) : (
@@ -223,7 +243,7 @@ const AuthPage = ({ onLogin }: AuthPageProps) => {
                       <AlertDescription>{message.text}</AlertDescription>
                     </Alert>
                   )}
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor="signup-name">Full Name</Label>
                     <div className="relative">
@@ -285,7 +305,7 @@ const AuthPage = ({ onLogin }: AuthPageProps) => {
                   </div>
 
                   <Button 
-                    onClick={handleSignUp}
+                    onClick={handleSignup}
                     disabled={isLoading}
                     className="w-full bg-gradient-primary hover:bg-primary-hover shadow-button"
                   >
