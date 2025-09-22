@@ -4,7 +4,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Car, Mail, Phone, User, Lock } from 'lucide-react';
+import { Car, Mail, Phone, User, Lock, AlertCircle, CheckCircle } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { supabase } from '@/integrations/supabase/client';
 import heroImage from '@/assets/hero-cars.jpg';
 
 interface AuthPageProps {
@@ -17,19 +19,90 @@ const AuthPage = ({ onLogin }: AuthPageProps) => {
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  // Simulate login/signup process
-  const handleAuth = async (type: 'login' | 'signup') => {
+  // Handle signup with email verification
+  const handleSignUp = async () => {
+    if (!email || !password || !name || !phone) {
+      setMessage({ type: 'error', text: 'Please fill in all fields' });
+      return;
+    }
+
     setIsLoading(true);
-    // Simulate API call
-    setTimeout(() => {
+    setMessage(null);
+
+    try {
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/`,
+          data: {
+            full_name: name,
+            phone: phone,
+          }
+        }
+      });
+
+      if (error) {
+        setMessage({ type: 'error', text: error.message });
+      } else {
+        setMessage({ 
+          type: 'success', 
+          text: 'Account created! Please check your email for verification link before signing in.' 
+        });
+        // Clear form
+        setEmail('');
+        setPassword('');
+        setName('');
+        setPhone('');
+      }
+    } catch (err: any) {
+      setMessage({ type: 'error', text: 'An unexpected error occurred' });
+    } finally {
       setIsLoading(false);
-      if (type === 'signup') {
-        alert('Account created! Please check your email for verification link.');
+    }
+  };
+
+  // Handle login
+  const handleSignIn = async () => {
+    if (!email || !password) {
+      setMessage({ type: 'error', text: 'Please enter email and password' });
+      return;
+    }
+
+    setIsLoading(true);
+    setMessage(null);
+
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) {
+        if (error.message === 'Email not confirmed') {
+          setMessage({ 
+            type: 'error', 
+            text: 'Please verify your email address before signing in. Check your inbox for verification link.' 
+          });
+        } else {
+          setMessage({ type: 'error', text: error.message });
+        }
+      } else if (data.user && !data.user.email_confirmed_at) {
+        setMessage({ 
+          type: 'error', 
+          text: 'Please verify your email address before signing in. Check your inbox for verification link.' 
+        });
+        await supabase.auth.signOut();
       } else {
         onLogin(); // Redirect to homepage
       }
-    }, 2000);
+    } catch (err: any) {
+      setMessage({ type: 'error', text: 'An unexpected error occurred' });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -78,6 +151,17 @@ const AuthPage = ({ onLogin }: AuthPageProps) => {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  {message && (
+                    <Alert className={message.type === 'error' ? 'border-red-500 text-red-700' : 'border-green-500 text-green-700'}>
+                      {message.type === 'error' ? (
+                        <AlertCircle className="h-4 w-4" />
+                      ) : (
+                        <CheckCircle className="h-4 w-4" />
+                      )}
+                      <AlertDescription>{message.text}</AlertDescription>
+                    </Alert>
+                  )}
+                  
                   <div className="space-y-2">
                     <Label htmlFor="email">Email</Label>
                     <div className="relative">
@@ -109,7 +193,7 @@ const AuthPage = ({ onLogin }: AuthPageProps) => {
                   </div>
 
                   <Button 
-                    onClick={() => handleAuth('login')}
+                    onClick={handleSignIn}
                     disabled={isLoading}
                     className="w-full bg-gradient-primary hover:bg-primary-hover shadow-button"
                   >
@@ -129,6 +213,17 @@ const AuthPage = ({ onLogin }: AuthPageProps) => {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  {message && (
+                    <Alert className={message.type === 'error' ? 'border-red-500 text-red-700' : 'border-green-500 text-green-700'}>
+                      {message.type === 'error' ? (
+                        <AlertCircle className="h-4 w-4" />
+                      ) : (
+                        <CheckCircle className="h-4 w-4" />
+                      )}
+                      <AlertDescription>{message.text}</AlertDescription>
+                    </Alert>
+                  )}
+                  
                   <div className="space-y-2">
                     <Label htmlFor="signup-name">Full Name</Label>
                     <div className="relative">
@@ -190,7 +285,7 @@ const AuthPage = ({ onLogin }: AuthPageProps) => {
                   </div>
 
                   <Button 
-                    onClick={() => handleAuth('signup')}
+                    onClick={handleSignUp}
                     disabled={isLoading}
                     className="w-full bg-gradient-primary hover:bg-primary-hover shadow-button"
                   >
